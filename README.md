@@ -2,6 +2,9 @@
 
 **Check a payment link before you pay it.**
 
+**Live demo:** https://charry99.github.io/payshield-hybrid/
+**Firebase project:** `payshield-hybrid` (Spark plan, AI Logic via the Gemini Developer API)
+
 PayShield Hybrid is a pay-link safety checker built for the
 **#BuildHybridAI 2026** hackathon. Paste a payment link, a
 payment-request message, or a crypto address, and you get two
