@@ -8,6 +8,7 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import {
   initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
   ReCaptchaV3Provider,
 } from "firebase/app-check";
 
@@ -76,10 +77,15 @@ export function getFirebaseState(): FirebaseState {
   return cached;
 }
 
-// App Check protects the Gemini API behind AI Logic. Two paths:
+// App Check protects the Gemini API behind AI Logic. Three paths, in
+// priority order:
 //
-// 1. Production: VITE_RECAPTCHA_SITE_KEY is set -> reCAPTCHA v3 provider.
-// 2. Local dev / hackathon demo: VITE_APPCHECK_DEBUG_TOKEN is set ->
+// 1. Production: VITE_RECAPTCHA_ENTERPRISE_SITE_KEY is set -> Fraud
+//    Defense (reCAPTCHA Enterprise) provider. This is the provider the
+//    Firebase console registers for this app; classic reCAPTCHA v3 key
+//    registration is deprecated by Firebase.
+// 2. Legacy: VITE_RECAPTCHA_SITE_KEY is set -> reCAPTCHA v3 provider.
+// 3. Local dev / hackathon demo: VITE_APPCHECK_DEBUG_TOKEN is set ->
 //    assign it to self.FIREBASE_APPCHECK_DEBUG_TOKEN *before*
 //    initializeAppCheck, as the App Check docs require. With the value
 //    "true" the SDK generates a token and prints it in the browser
@@ -87,6 +93,8 @@ export function getFirebaseState(): FirebaseState {
 //    App Check > Apps > Manage debug tokens. A fixed UUID also works.
 function initAppCheck(app: FirebaseApp): void {
   const env = import.meta.env;
+  const enterpriseSiteKey: string =
+    env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY || "";
   const siteKey: string = env.VITE_RECAPTCHA_SITE_KEY || "";
   const debugToken: string = env.VITE_APPCHECK_DEBUG_TOKEN || "";
 
@@ -97,12 +105,13 @@ function initAppCheck(app: FirebaseApp): void {
       debugToken === "true" ? true : debugToken;
   }
 
-  if (!siteKey && !debugToken) {
+  if (!enterpriseSiteKey && !siteKey && !debugToken) {
     // No provider configured. AI Logic calls will be rejected by App
     // Check enforcement; the UI surfaces that error. We still skip
     // initialisation rather than crash the whole app.
     console.info(
-      "[PayShield] App Check not configured: set VITE_RECAPTCHA_SITE_KEY " +
+      "[PayShield] App Check not configured: set " +
+        "VITE_RECAPTCHA_ENTERPRISE_SITE_KEY, VITE_RECAPTCHA_SITE_KEY " +
         "or VITE_APPCHECK_DEBUG_TOKEN (see .env.example).",
     );
     return;
@@ -112,7 +121,9 @@ function initAppCheck(app: FirebaseApp): void {
     initializeAppCheck(app, {
       // With the debug token global set, the SDK uses the debug provider
       // regardless of the provider passed here.
-      provider: new ReCaptchaV3Provider(siteKey || "debug-token-in-use"),
+      provider: enterpriseSiteKey
+        ? new ReCaptchaEnterpriseProvider(enterpriseSiteKey)
+        : new ReCaptchaV3Provider(siteKey || "debug-token-in-use"),
       isTokenAutoRefreshEnabled: true,
     });
   } catch (err) {
